@@ -1,0 +1,8 @@
+github.com/cloudflare/ahocorasick v0.0.0-20240916140611-054963ec9396 h1:W2HK1IdCnCGuLUeyizSCkwvBjdj0ZL7mxnJYQ3poyzI=
+github.com/cloudflare/ahocorasick v0.0.0-20240916140611-054963ec9396/go.mod h1:tGWUZLZp9ajsxUOnHmFFLnqnlKXsCn6GReG4jAD59H0=
+github.com/fsnotify/fsnotify v1.10.1 h1:b0/UzAf9yR5rhf3RPm9gf3ehBPpf0oZKIjtpKrx59Ho=
+github.com/fsnotify/fsnotify v1.10.1/go.mod h1:TLheqan6HD6GBK6PrDWyDPBaEV8LspOxvPSjC+bVfgo=
+github.com/go-telegram/bot v1.20.0 h1:4Pea/qTidSspr4WBJw9FbHUMNhYeqszBqQUfsQEyFbc=
+github.com/go-telegram/bot v1.20.0/go.mod h1:i2TRs7fXWIeaceF3z7KzsMt/he0TwkVC680mvdTFYeM=
+golang.org/x/sys v0.13.0 h1:Af8nKPmuFypiUBjVoU9V20FiaFXOcuZI21p0ycVYYGE=
+golang.org/x/sys v0.13.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
