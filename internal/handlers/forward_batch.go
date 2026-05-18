@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -10,7 +9,6 @@ import (
 	"github.com/Fhokud/tg_Verify_Bot/internal/telegram"
 	"github.com/Fhokud/tg_Verify_Bot/internal/utils"
 	"github.com/go-telegram/bot"
-	tgmodels "github.com/go-telegram/bot/models"
 )
 
 const forwardBatchDelay = 2 * time.Second
@@ -85,20 +83,5 @@ func flushForwardMessageBatch(ctx context.Context, b *bot.Bot, key forwardBatchK
 
 	_ = telegram.DeleteMessagesWithRetry(ctx, b, key.ChatID, messageIDs)
 	log.Printf("🚫 已批量删除用户 %d(%s) 的 %d 条转发消息", key.UserID, userName, len(messageIDs))
-
-	warnText := fmt.Sprintf("<a href=\"tg://user?id=%d\">%s</a>：请注意，禁止批量转发消息。", key.UserID, userName)
-	warnMsg, err := b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID:    key.ChatID,
-		Text:      warnText,
-		ParseMode: tgmodels.ParseModeHTML,
-	})
-	if err != nil {
-		return
-	}
-
-	time.AfterFunc(60*time.Second, func() {
-		utils.SafeGo(func() {
-			_ = telegram.DeleteMessageWithRetry(ctx, b, key.ChatID, warnMsg.ID)
-		})
-	})
+	sendAutoDeleteWarning(ctx, b, key.ChatID, key.UserID, userName, "请注意，禁止批量转发消息。")
 }

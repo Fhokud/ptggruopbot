@@ -65,11 +65,13 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *tgmodels.Update, du
 		}
 
 		content := keywords.ExtractTextFromMessage(msg)
+		fingerprint := utils.MessageFingerprint(content, msg.Photo)
 
-		msgIDs, isDup := utils.IsDuplicateMessage(userID, content, chatID, msg.ID, duplicateWindow)
+		msgIDs, isDup := utils.IsDuplicateMessage(userID, fingerprint, chatID, msg.ID, duplicateWindow)
 		if isDup {
 			_ = telegram.DeleteMessagesWithRetry(ctx, b, chatID, msgIDs)
 			log.Printf("🚫 已删除用户 %d(%s) 的重复消息", userID, userName)
+			sendAutoDeleteWarning(ctx, b, chatID, userID, userName, "请注意，禁止发送重复消息。")
 			return
 		}
 

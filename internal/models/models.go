@@ -17,9 +17,9 @@ type PendingPoll struct {
 }
 
 type LastUserMessage struct {
-	Hash      uint64
-	MessageID int
-	ExpiresAt int64
+	Fingerprint string
+	MessageID   int
+	ExpiresAt   int64
 }
 
 type LastUserMessageKey struct {

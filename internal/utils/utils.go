@@ -2,12 +2,14 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/Fhokud/tg_Verify_Bot/internal/models"
+	tgmodels "github.com/go-telegram/bot/models"
 	"github.com/zeebo/xxh3"
 )
 
@@ -58,24 +60,49 @@ func NormalizeMessage(text string) string {
 	return strings.ToLower(strings.Join(strings.Fields(text), " "))
 }
 
-func IsDuplicateMessage(userID int64, text string, chatID int64, messageID int, window time.Duration) ([]int, bool) {
+func MessageFingerprint(text string, photos []tgmodels.PhotoSize) string {
+	photoUniqueID := largestPhotoUniqueID(photos)
+	if photoUniqueID != "" {
+		return "photo:" + photoUniqueID
+	}
+
 	normalized := NormalizeMessage(text)
-	if normalized == "" {
+	if normalized != "" {
+		return fmt.Sprintf("text:%016x", xxh3.HashString(normalized))
+	}
+
+	return ""
+}
+
+func largestPhotoUniqueID(photos []tgmodels.PhotoSize) string {
+	var best tgmodels.PhotoSize
+	for _, photo := range photos {
+		if photo.FileUniqueID == "" {
+			continue
+		}
+		if photo.Width*photo.Height > best.Width*best.Height {
+			best = photo
+		}
+	}
+	return best.FileUniqueID
+}
+
+func IsDuplicateMessage(userID int64, fingerprint string, chatID int64, messageID int, window time.Duration) ([]int, bool) {
+	if fingerprint == "" {
 		return nil, false
 	}
 
 	now := time.Now()
 	nowUnix := now.UnixNano()
-	hash := xxh3.HashString(normalized)
 	expiresAt := now.Add(window).UnixNano()
 	key := models.LastUserMessageKey{
 		ChatID: chatID,
 		UserID: userID,
 	}
 	record := &models.LastUserMessage{
-		Hash:      hash,
-		MessageID: messageID,
-		ExpiresAt: expiresAt,
+		Fingerprint: fingerprint,
+		MessageID:   messageID,
+		ExpiresAt:   expiresAt,
 	}
 
 	for {
@@ -92,7 +119,7 @@ func IsDuplicateMessage(userID int64, text string, chatID int64, messageID int, 
 			continue
 		}
 
-		if previous.Hash == hash {
+		if previous.Fingerprint == fingerprint {
 			if models.LastUserMessages.CompareAndSwap(key, previous, record) {
 				return []int{previous.MessageID, messageID}, true
 			}
