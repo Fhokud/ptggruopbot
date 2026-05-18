@@ -15,7 +15,13 @@ import (
 	tgmodels "github.com/go-telegram/bot/models"
 )
 
-func DefaultHandler(ctx context.Context, b *bot.Bot, update *tgmodels.Update) {
+func NewDefaultHandler(duplicateWindow time.Duration) bot.HandlerFunc {
+	return func(ctx context.Context, b *bot.Bot, update *tgmodels.Update) {
+		DefaultHandler(ctx, b, update, duplicateWindow)
+	}
+}
+
+func DefaultHandler(ctx context.Context, b *bot.Bot, update *tgmodels.Update, duplicateWindow time.Duration) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("[handler panic recovered] %v", r)
@@ -75,7 +81,7 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *tgmodels.Update) {
 
 		content := keywords.ExtractTextFromMessage(msg)
 
-		chatIDs, msgIDs, isDup := utils.IsDuplicateMessage(userID, content, chatID, msg.ID, 12*time.Hour)
+		chatIDs, msgIDs, isDup := utils.IsDuplicateMessage(userID, content, chatID, msg.ID, duplicateWindow)
 		if isDup {
 			for i, mid := range msgIDs {
 				cid := chatIDs[i]

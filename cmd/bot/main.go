@@ -46,13 +46,16 @@ func main() {
 		webhookPath = "/" + webhookPath
 	}
 
-	b, err := bot.New(token, bot.WithDefaultHandler(handlers.DefaultHandler))
+	duplicateWindow := utils.DuplicateMessageWindow()
+
+	b, err := bot.New(token, bot.WithDefaultHandler(handlers.NewDefaultHandler(duplicateWindow)))
 	if err != nil {
 		log.Fatalf("bot.New error: %v", err)
 	}
 
 	keywords.InitAC()
-	utils.StartMessageCacheCleaner(ctx)
+	utils.StartMessageCacheCleaner(ctx, duplicateWindow)
+	log.Printf("重复消息匹配时段: %s", duplicateWindow)
 
 	log.Println("正在删除旧 webhook，并丢弃 pending updates...")
 	if err := telegram.DeleteWebhook(token); err != nil {

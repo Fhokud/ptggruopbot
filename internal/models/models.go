@@ -16,11 +16,11 @@ type PendingPoll struct {
 	Voted           bool
 }
 
-type LastMessage struct {
-	Text      string
-	Time      time.Time
-	MessageID int
+type LastUserMessage struct {
+	Hash      uint64
 	ChatID    int64
+	MessageID int
+	ExpiresAt int64
 }
 
 var (
@@ -29,6 +29,5 @@ var (
 	Wg           sync.WaitGroup
 	AcMatcher    atomic.Value
 
-	LastMessages = make(map[int64][]LastMessage)
-	LastMsgMu    sync.Mutex
+	LastUserMessages sync.Map
 )

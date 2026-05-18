@@ -3,10 +3,12 @@ package utils
 import (
 	"context"
 	"log"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/Fhokud/tg_Verify_Bot/internal/models"
+	"github.com/zeebo/xxh3"
 )
 
 func SafeGo(f func()) {
@@ -24,54 +26,93 @@ func SafeGo(f func()) {
 
 func BoolPtr(b bool) *bool { return &b }
 
-func IsDuplicateMessage(userID int64, text string, chatID int64, messageID int, window time.Duration) ([]int64, []int, bool) {
+const (
+	defaultDuplicateMessageWindow = 48 * time.Hour
+	duplicateMessageWindowEnv     = "DUPLICATE_MESSAGE_WINDOW"
+)
+
+func DuplicateMessageWindow() time.Duration {
+	raw := strings.TrimSpace(os.Getenv(duplicateMessageWindowEnv))
+	if raw == "" {
+		return defaultDuplicateMessageWindow
+	}
+
+	if d, err := time.ParseDuration(strings.ToLower(raw)); err == nil && d > 0 {
+		return d
+	}
+
+	if hours, err := time.ParseDuration(raw + "h"); err == nil && hours > 0 {
+		return hours
+	}
+
+	log.Printf("环境变量 %s=%q 无效，使用默认重复消息匹配时段 %s", duplicateMessageWindowEnv, raw, defaultDuplicateMessageWindow)
+	return defaultDuplicateMessageWindow
+}
+
+func NormalizeMessage(text string) string {
+	text = strings.ToValidUTF8(text, "")
 	text = strings.TrimSpace(text)
 	if text == "" {
+		return ""
+	}
+	return strings.ToLower(strings.Join(strings.Fields(text), " "))
+}
+
+func IsDuplicateMessage(userID int64, text string, chatID int64, messageID int, window time.Duration) ([]int64, []int, bool) {
+	normalized := NormalizeMessage(text)
+	if normalized == "" {
 		return nil, nil, false
 	}
 
 	now := time.Now()
-
-	models.LastMsgMu.Lock()
-	defer models.LastMsgMu.Unlock()
-
-	msgs, ok := models.LastMessages[userID]
-	if !ok {
-		msgs = []models.LastMessage{}
+	nowUnix := now.UnixNano()
+	hash := xxh3.HashString(normalized)
+	expiresAt := now.Add(window).UnixNano()
+	record := &models.LastUserMessage{
+		Hash:      hash,
+		ChatID:    chatID,
+		MessageID: messageID,
+		ExpiresAt: expiresAt,
 	}
 
-	var toDeleteChatIDs []int64
-	var toDeleteMessageIDs []int
-	var newMsgs []models.LastMessage
-	isDuplicate := false
+	for {
+		actual, loaded := models.LastUserMessages.LoadOrStore(userID, record)
+		if !loaded {
+			return nil, nil, false
+		}
 
-	for _, m := range msgs {
-		if now.Sub(m.Time) <= window {
-			if m.Text == text {
-				toDeleteChatIDs = append(toDeleteChatIDs, m.ChatID)
-				toDeleteMessageIDs = append(toDeleteMessageIDs, m.MessageID)
-				isDuplicate = true
-			} else {
-				newMsgs = append(newMsgs, m)
+		previous := actual.(*models.LastUserMessage)
+		if previous.ExpiresAt <= nowUnix {
+			if models.LastUserMessages.CompareAndSwap(userID, previous, record) {
+				return nil, nil, false
 			}
-		} // else discard old
-	}
+			continue
+		}
 
-	if isDuplicate {
-		toDeleteChatIDs = append(toDeleteChatIDs, chatID)
-		toDeleteMessageIDs = append(toDeleteMessageIDs, messageID)
-		models.LastMessages[userID] = newMsgs // remove the duplicates
-		return toDeleteChatIDs, toDeleteMessageIDs, true
-	} else {
-		newMsgs = append(newMsgs, models.LastMessage{Text: text, Time: now, MessageID: messageID, ChatID: chatID})
-		models.LastMessages[userID] = newMsgs
-		return nil, nil, false
+		if previous.Hash == hash {
+			if models.LastUserMessages.CompareAndSwap(userID, previous, record) {
+				return []int64{previous.ChatID, chatID}, []int{previous.MessageID, messageID}, true
+			}
+			continue
+		}
+
+		if models.LastUserMessages.CompareAndSwap(userID, previous, record) {
+			return nil, nil, false
+		}
 	}
 }
 
-func StartMessageCacheCleaner(ctx context.Context) {
+func StartMessageCacheCleaner(ctx context.Context, window time.Duration) {
 	SafeGo(func() {
-		ticker := time.NewTicker(10 * time.Minute)
+		interval := window / 24
+		if interval < time.Minute {
+			interval = time.Minute
+		}
+		if interval > 10*time.Minute {
+			interval = 10 * time.Minute
+		}
+
+		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 
 		for {
@@ -80,23 +121,14 @@ func StartMessageCacheCleaner(ctx context.Context) {
 				return
 
 			case <-ticker.C:
-				now := time.Now()
-
-				models.LastMsgMu.Lock()
-				for uid, msgs := range models.LastMessages {
-					var newMsgs []models.LastMessage
-					for _, msg := range msgs {
-						if now.Sub(msg.Time) <= 12*time.Hour {
-							newMsgs = append(newMsgs, msg)
-						}
+				now := time.Now().UnixNano()
+				models.LastUserMessages.Range(func(key, value any) bool {
+					msg := value.(*models.LastUserMessage)
+					if msg.ExpiresAt <= now {
+						models.LastUserMessages.CompareAndDelete(key, msg)
 					}
-					if len(newMsgs) == 0 {
-						delete(models.LastMessages, uid)
-					} else {
-						models.LastMessages[uid] = newMsgs
-					}
-				}
-				models.LastMsgMu.Unlock()
+					return true
+				})
 			}
 		}
 	})

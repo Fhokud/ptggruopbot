@@ -6,7 +6,7 @@ Telegram 群管理机器人，支持：
 - 新用户验证投票机制
 - 拒绝批量转发消息
 - 敏感关键词检测与删除
-- 重复消息检测（12 小时内相同内容批量删除）
+- 重复消息检测（默认 48 小时内同一用户连续相同归一化内容批量删除）
 
 ## 目录结构
 
@@ -35,6 +35,7 @@ Telegram 群管理机器人，支持：
 - `TELEGRAM_WEBHOOK_SECRET` - 可选的 webhook secret token
 - `TELEGRAM_WEBHOOK_LISTEN` - 可选监听地址，默认 `127.0.0.1:898`
 - `TELEGRAM_WEBHOOK_PATH` - 可选 webhook 路径，默认 `/webhook`
+- `DUPLICATE_MESSAGE_WINDOW` - 可选重复消息匹配时段，默认 `48h`；支持 Go duration（如 `30m`、`72h`），也支持纯数字按小时处理
 
 ## 构建与运行
 
@@ -91,4 +92,4 @@ WantedBy=multi-user.target
 
 - 程序会自动创建 `keywords/` 文件夹（如果不存在）
 - 关键词匹配使用 Aho-Corasick 算法，支持高效批量匹配
-- 重复消息判断窗口为 `12h`，同一用户 12 小时内相同内容会一起删除
+- 重复消息判断窗口默认 `48h`，同一用户上一条消息与当前消息的归一化内容相同会一起删除
