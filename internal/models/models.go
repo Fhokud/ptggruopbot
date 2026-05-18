@@ -18,9 +18,13 @@ type PendingPoll struct {
 
 type LastUserMessage struct {
 	Hash      uint64
-	ChatID    int64
 	MessageID int
 	ExpiresAt int64
+}
+
+type LastUserMessageKey struct {
+	ChatID int64
+	UserID int64
 }
 
 var (

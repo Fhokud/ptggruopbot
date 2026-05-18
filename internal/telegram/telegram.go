@@ -85,6 +85,16 @@ func DeleteMessageWithRetry(ctx context.Context, b *bot.Bot, chatID int64, messa
 	})
 }
 
+func DeleteMessagesWithRetry(ctx context.Context, b *bot.Bot, chatID int64, messageIDs []int) error {
+	return utils.Retry(3, 300*time.Millisecond, func() error {
+		_, err := b.DeleteMessages(ctx, &bot.DeleteMessagesParams{
+			ChatID:     chatID,
+			MessageIDs: messageIDs,
+		})
+		return err
+	})
+}
+
 func SendPollWithRetry(ctx context.Context, b *bot.Bot, chatID int64, question string, options []models.InputPollOption, anonymous bool, openPeriod int) (*models.Message, error) {
 	var msg *models.Message
 	err := utils.Retry(3, 300*time.Millisecond, func() error {

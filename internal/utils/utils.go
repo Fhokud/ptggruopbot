@@ -58,46 +58,49 @@ func NormalizeMessage(text string) string {
 	return strings.ToLower(strings.Join(strings.Fields(text), " "))
 }
 
-func IsDuplicateMessage(userID int64, text string, chatID int64, messageID int, window time.Duration) ([]int64, []int, bool) {
+func IsDuplicateMessage(userID int64, text string, chatID int64, messageID int, window time.Duration) ([]int, bool) {
 	normalized := NormalizeMessage(text)
 	if normalized == "" {
-		return nil, nil, false
+		return nil, false
 	}
 
 	now := time.Now()
 	nowUnix := now.UnixNano()
 	hash := xxh3.HashString(normalized)
 	expiresAt := now.Add(window).UnixNano()
+	key := models.LastUserMessageKey{
+		ChatID: chatID,
+		UserID: userID,
+	}
 	record := &models.LastUserMessage{
 		Hash:      hash,
-		ChatID:    chatID,
 		MessageID: messageID,
 		ExpiresAt: expiresAt,
 	}
 
 	for {
-		actual, loaded := models.LastUserMessages.LoadOrStore(userID, record)
+		actual, loaded := models.LastUserMessages.LoadOrStore(key, record)
 		if !loaded {
-			return nil, nil, false
+			return nil, false
 		}
 
 		previous := actual.(*models.LastUserMessage)
 		if previous.ExpiresAt <= nowUnix {
-			if models.LastUserMessages.CompareAndSwap(userID, previous, record) {
-				return nil, nil, false
+			if models.LastUserMessages.CompareAndSwap(key, previous, record) {
+				return nil, false
 			}
 			continue
 		}
 
 		if previous.Hash == hash {
-			if models.LastUserMessages.CompareAndSwap(userID, previous, record) {
-				return []int64{previous.ChatID, chatID}, []int{previous.MessageID, messageID}, true
+			if models.LastUserMessages.CompareAndSwap(key, previous, record) {
+				return []int{previous.MessageID, messageID}, true
 			}
 			continue
 		}
 
-		if models.LastUserMessages.CompareAndSwap(userID, previous, record) {
-			return nil, nil, false
+		if models.LastUserMessages.CompareAndSwap(key, previous, record) {
+			return nil, false
 		}
 	}
 }
