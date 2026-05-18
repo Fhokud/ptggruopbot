@@ -60,22 +60,7 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *tgmodels.Update, du
 		}
 
 		if forwardDetected {
-			_ = telegram.DeleteMessageWithRetry(ctx, b, chatID, msg.ID)
-			log.Printf("🚫 已删除用户 %d(%s) 的转发消息", userID, userName)
-
-			warnText := fmt.Sprintf("<a href=\"tg://user?id=%d\">%s</a>：请注意，禁止批量转发消息。", userID, userName)
-			warnMsg, err := b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID:    chatID,
-				Text:      warnText,
-				ParseMode: tgmodels.ParseModeHTML,
-			})
-			if err == nil {
-				time.AfterFunc(60*time.Second, func() {
-					utils.SafeGo(func() {
-						_ = telegram.DeleteMessageWithRetry(ctx, b, chatID, warnMsg.ID)
-					})
-				})
-			}
+			queueForwardMessage(ctx, b, chatID, userID, userName, msg.ID)
 			return
 		}
 
