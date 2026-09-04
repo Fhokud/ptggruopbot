@@ -9,11 +9,18 @@ import (
 	"github.com/Fhokud/tg_Verify_Bot/internal/keywords"
 	appmodels "github.com/Fhokud/tg_Verify_Bot/internal/models"
 	"github.com/Fhokud/tg_Verify_Bot/internal/poll"
+	"github.com/Fhokud/tg_Verify_Bot/internal/relay"
 	"github.com/Fhokud/tg_Verify_Bot/internal/telegram"
 	"github.com/Fhokud/tg_Verify_Bot/internal/utils"
 	"github.com/go-telegram/bot"
 	tgmodels "github.com/go-telegram/bot/models"
 )
+
+var privateRelay = relay.New(0)
+
+func ConfigureRelay(adminChatID int64) {
+	privateRelay = relay.New(adminChatID)
+}
 
 func NewDefaultHandler(duplicateWindow time.Duration) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *tgmodels.Update) {
@@ -31,6 +38,13 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *tgmodels.Update, du
 	if update.Message != nil {
 		msg := update.Message
 		chatID := msg.Chat.ID
+
+		// Private messages are handled by the conversation relay and must not be
+		// processed by group anti-forward/keyword/duplicate-message rules.
+		if msg.Chat.Type == tgmodels.ChatTypePrivate {
+			privateRelay.HandlePrivate(ctx, b, msg)
+			return
+		}
 
 		var userID int64
 		var userName string

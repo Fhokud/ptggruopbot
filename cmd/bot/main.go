@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,6 +33,18 @@ func main() {
 	}
 
 	secretToken := os.Getenv("TELEGRAM_WEBHOOK_SECRET")
+
+	adminChatIDText := os.Getenv("TELEGRAM_ADMIN_CHAT_ID")
+	if adminChatIDText == "" {
+		log.Println("⚠️ 未设置 TELEGRAM_ADMIN_CHAT_ID，私聊消息中继功能未启用")
+	} else {
+		adminChatID, err := strconv.ParseInt(adminChatIDText, 10, 64)
+		if err != nil || adminChatID == 0 {
+			log.Fatalf("TELEGRAM_ADMIN_CHAT_ID 必须是有效的非零 Telegram 用户 ID")
+		}
+		handlers.ConfigureRelay(adminChatID)
+		log.Printf("✅ 私聊消息中继已启用，管理员 Chat ID: %d", adminChatID)
+	}
 
 	listenAddr := os.Getenv("TELEGRAM_WEBHOOK_LISTEN")
 	if listenAddr == "" {
