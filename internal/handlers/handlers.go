@@ -18,8 +18,13 @@ import (
 
 var privateRelay = relay.New(0)
 
-func ConfigureRelay(adminChatID int64) {
-	privateRelay = relay.New(adminChatID)
+func ConfigureRelay(adminChatID int64, stateFile string) error {
+	r, err := relay.NewPersistent(adminChatID, stateFile)
+	if err != nil {
+		return err
+	}
+	privateRelay = r
+	return nil
 }
 
 func NewDefaultHandler(duplicateWindow time.Duration) bot.HandlerFunc {

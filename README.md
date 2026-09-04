@@ -38,12 +38,13 @@ Telegram 群管理机器人，支持：
 - `TELEGRAM_WEBHOOK_PATH` - 可选 webhook 路径，默认 `/webhook`
 - `DUPLICATE_MESSAGE_WINDOW` - 可选重复消息匹配时段，默认 `48h`；支持 Go duration（如 `30m`、`72h`），也支持纯数字按小时处理
 - `TELEGRAM_ADMIN_CHAT_ID` - 管理员的 Telegram 数字用户 ID；设置后启用私聊双向中继
+- `TELEGRAM_RELAY_STATE_FILE` - 可选的私聊路由状态文件；未设置或留空时，默认为程序运行目录下的 `relay_routes.json`
 
 ## 私聊消息中继
 
-设置 `TELEGRAM_ADMIN_CHAT_ID` 后，用户发给 Bot 的私聊消息会默认复制给该管理员。管理员在与 Bot 的私聊中直接回复收到的消息或其用户信息标题，Bot 会把回复复制给对应用户。复制方式不会暴露双方账号，也适用于文字、图片、文件和语音等常见消息。
+设置 `TELEGRAM_ADMIN_CHAT_ID` 后，用户发给 Bot 的私聊消息会默认复制给该管理员。管理员回复用户信息标题时，Bot 会向对应用户发送普通新消息；管理员回复复制过来的用户原消息时，Bot 会引用该原消息进行回复。复制方式不会暴露管理员账号，也适用于文字、图片、文件和语音等常见消息。
 
-路由关系保存在内存中并保留 30 天；Bot 重启后，重启前收到的消息不能再通过“回复”方式路由。
+路由关系保留 30 天，并持久化到 `TELEGRAM_RELAY_STATE_FILE` 指定的 JSON 文件；Bot 重启后仍可回复之前收到的消息。请确保运行用户对状态文件所在目录有写权限。
 
 ## 构建与运行
 
@@ -83,6 +84,7 @@ Environment="TELEGRAM_BOT_TOKEN=TOKEN"
 Environment="TELEGRAM_WEBHOOK_URL=https://push.exp.com/webhook"
 Environment="TELEGRAM_WEBHOOK_SECRET=rand"
 Environment="TELEGRAM_ADMIN_CHAT_ID=123456789"
+Environment="TELEGRAM_RELAY_STATE_FILE=/var/lib/ptggruopbot/relay_routes.json"
 Restart=always
 RestartSec=5
 

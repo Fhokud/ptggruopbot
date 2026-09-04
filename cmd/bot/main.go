@@ -42,8 +42,14 @@ func main() {
 		if err != nil || adminChatID == 0 {
 			log.Fatalf("TELEGRAM_ADMIN_CHAT_ID 必须是有效的非零 Telegram 用户 ID")
 		}
-		handlers.ConfigureRelay(adminChatID)
-		log.Printf("✅ 私聊消息中继已启用，管理员 Chat ID: %d", adminChatID)
+		relayStateFile := os.Getenv("TELEGRAM_RELAY_STATE_FILE")
+		if relayStateFile == "" {
+			relayStateFile = "relay_routes.json"
+		}
+		if err := handlers.ConfigureRelay(adminChatID, relayStateFile); err != nil {
+			log.Fatalf("初始化私聊消息路由失败: %v", err)
+		}
+		log.Printf("✅ 私聊消息中继已启用，管理员 Chat ID: %d，状态文件: %s", adminChatID, relayStateFile)
 	}
 
 	listenAddr := os.Getenv("TELEGRAM_WEBHOOK_LISTEN")
