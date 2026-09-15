@@ -51,6 +51,15 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *tgmodels.Update, du
 			return
 		}
 
+		if msg.Chat.Type == tgmodels.ChatTypeGroup || msg.Chat.Type == tgmodels.ChatTypeSupergroup {
+			if handleWhitelistCommand(ctx, b, msg) {
+				return
+			}
+			if isGroupMessageExempt(ctx, b, msg) {
+				return
+			}
+		}
+
 		var userID int64
 		var userName string
 

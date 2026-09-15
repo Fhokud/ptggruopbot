@@ -33,6 +33,13 @@ func main() {
 	}
 
 	secretToken := os.Getenv("TELEGRAM_WEBHOOK_SECRET")
+	whitelistStateFile := os.Getenv("TELEGRAM_WHITELIST_STATE_FILE")
+	if whitelistStateFile == "" {
+		whitelistStateFile = "group_whitelist.json"
+	}
+	if err := handlers.ConfigureWhitelist(os.Getenv("TELEGRAM_WHITELIST_ADMIN_IDS"), whitelistStateFile); err != nil {
+		log.Fatalf("初始化群消息白名单失败: %v", err)
+	}
 
 	adminChatIDText := os.Getenv("TELEGRAM_ADMIN_CHAT_ID")
 	if adminChatIDText == "" {
@@ -70,6 +77,10 @@ func main() {
 	b, err := bot.New(token, bot.WithDefaultHandler(handlers.NewDefaultHandler(duplicateWindow)))
 	if err != nil {
 		log.Fatalf("bot.New error: %v", err)
+	}
+
+	if err := handlers.ConfigureAdminCommands(ctx, b); err != nil {
+		log.Printf("设置管理员命令菜单失败: %v；仍可通过 @Bot 或 /help 查看", err)
 	}
 
 	keywords.InitAC()
