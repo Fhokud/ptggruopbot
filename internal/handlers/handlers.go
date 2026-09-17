@@ -3,7 +3,9 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"html"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/Fhokud/tg_Verify_Bot/internal/keywords"
@@ -116,12 +118,10 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *tgmodels.Update, du
 		username := req.From.Username
 
 		if username == "" {
-			_, _ = b.DeclineChatJoinRequest(ctx, &bot.DeclineChatJoinRequestParams{
-				ChatID: chatID,
-				UserID: userID,
-			})
-			log.Printf("🚫 已拒绝无用户名用户 %d(%s)", userID, username)
-			return
+			username = strings.TrimSpace(req.From.FirstName + " " + req.From.LastName)
+			if username == "" {
+				username = fmt.Sprintf("%d", userID)
+			}
 		}
 
 		ok, err := b.ApproveChatJoinRequest(ctx, &bot.ApproveChatJoinRequestParams{
@@ -137,7 +137,7 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *tgmodels.Update, du
 
 		noticeMsg, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:    chatID,
-			Text:      fmt.Sprintf("<a href=\"tg://user?id=%d\">%s</a>请进行验证（60秒内），如果验证失败可以稍后重试", userID, username),
+			Text:      fmt.Sprintf("<a href=\"tg://user?id=%d\">%s</a>请进行验证（60秒内），如果验证失败可以稍后重试", userID, html.EscapeString(username)),
 			ParseMode: tgmodels.ParseModeHTML,
 		})
 		if err != nil {

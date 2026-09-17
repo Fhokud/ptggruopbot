@@ -23,7 +23,7 @@ Telegram 群管理机器人，支持：
 
 ## 依赖
 
-- Go 1.25+
+- Go 1.26+
 - `github.com/go-telegram/bot`
 - `github.com/cloudflare/ahocorasick`
 - `github.com/fsnotify/fsnotify`

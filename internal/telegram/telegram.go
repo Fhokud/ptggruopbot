@@ -55,7 +55,7 @@ func UnrestrictUser(ctx context.Context, b *bot.Bot, chatID, userID int64) error
 			CanSendOtherMessages:  true,
 			CanAddWebPagePreviews: false,
 			CanChangeInfo:         false,
-			CanInviteUsers:        false,
+			CanInviteUsers:        true,
 			CanPinMessages:        false,
 			CanManageTopics:       false,
 		},
