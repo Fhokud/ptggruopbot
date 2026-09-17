@@ -35,11 +35,15 @@ func DeletePending(userID int64) {
 }
 
 func CleanupPending(ctx context.Context, b *bot.Bot, p *models.PendingPoll) {
+	messageIDs := make([]int, 0, 2)
 	if p.PollMessageID != 0 {
-		_ = telegram.DeleteMessageWithRetry(ctx, b, p.ChatID, p.PollMessageID)
+		messageIDs = append(messageIDs, p.PollMessageID)
 	}
 	if p.NoticeMessageID != 0 {
-		_ = telegram.DeleteMessageWithRetry(ctx, b, p.ChatID, p.NoticeMessageID)
+		messageIDs = append(messageIDs, p.NoticeMessageID)
+	}
+	if len(messageIDs) > 0 {
+		_ = telegram.DeleteMessagesWithRetry(ctx, b, p.ChatID, messageIDs)
 	}
 	DeletePending(p.UserID)
 }
