@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,15 +30,25 @@ type Manager struct {
 	stateFile   string
 	mu          sync.Mutex
 	routes      map[int]route
+	blocked     map[int64]bool
+	reports     []report
+}
+
+type report struct {
+	UserChatID int64     `json:"user_chat_id"`
+	Text       string    `json:"text"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 type persistedState struct {
-	AdminChatID int64         `json:"admin_chat_id"`
-	Routes      map[int]route `json:"routes"`
+	AdminChatID int64          `json:"admin_chat_id"`
+	Routes      map[int]route  `json:"routes"`
+	Blocked     map[int64]bool `json:"blocked,omitempty"`
+	Reports     []report       `json:"reports,omitempty"`
 }
 
 func New(adminChatID int64) *Manager {
-	return &Manager{adminChatID: adminChatID, routes: make(map[int]route)}
+	return &Manager{adminChatID: adminChatID, routes: make(map[int]route), blocked: make(map[int64]bool)}
 }
 
 func NewPersistent(adminChatID int64, stateFile string) (*Manager, error) {
@@ -45,6 +56,7 @@ func NewPersistent(adminChatID int64, stateFile string) (*Manager, error) {
 		adminChatID: adminChatID,
 		stateFile:   stateFile,
 		routes:      make(map[int]route),
+		blocked:     make(map[int64]bool),
 	}
 	if err := m.load(); err != nil {
 		return nil, err
@@ -73,6 +85,13 @@ func (m *Manager) HandlePrivate(ctx context.Context, b *bot.Bot, msg *tgmodels.M
 }
 
 func (m *Manager) forwardToAdmin(ctx context.Context, b *bot.Bot, msg *tgmodels.Message) {
+	if m.isBlocked(msg.Chat.ID) {
+		_, _ = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: msg.Chat.ID, Text: "你已屏蔽此会话，消息不会转发给管理员。发送 /unblock 可恢复。"})
+		return
+	}
+	if handled := m.handleUserCommand(ctx, b, msg); handled {
+		return
+	}
 	name := "未知用户"
 	username := ""
 	if msg.From != nil {
@@ -117,6 +136,69 @@ func (m *Manager) forwardToAdmin(ctx context.Context, b *bot.Bot, msg *tgmodels.
 	// user message preserves Telegram's reply/quote relationship.
 	m.remember(route{UserChatID: msg.Chat.ID, CreatedAt: now}, header.ID)
 	m.remember(route{UserChatID: msg.Chat.ID, UserMessageID: msg.ID, ReplyToOriginal: true, CreatedAt: now}, copied.ID)
+}
+
+func (m *Manager) isBlocked(userChatID int64) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.blocked[userChatID]
+}
+
+func (m *Manager) handleUserCommand(ctx context.Context, b *bot.Bot, msg *tgmodels.Message) bool {
+	if msg.From == nil || !strings.HasPrefix(msg.Text, "/") {
+		return false
+	}
+	fields := strings.Fields(msg.Text)
+	if len(fields) == 0 {
+		return false
+	}
+	command := strings.SplitN(fields[0], "@", 2)[0]
+	switch command {
+	case "/start", "/help":
+		_, _ = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: msg.Chat.ID, Text: "私聊消息会转发给管理员。\n/block — 屏蔽并停止转发\n/unblock — 取消屏蔽\n/report [原因] — 举报此会话并通知管理员"})
+		return true
+	case "/block":
+		m.mu.Lock()
+		m.blocked[msg.Chat.ID] = true
+		err := m.saveLocked()
+		m.mu.Unlock()
+		if err != nil {
+			log.Printf("保存屏蔽状态失败: %v", err)
+			return true
+		}
+		_, _ = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: msg.Chat.ID, Text: "已屏蔽此会话，后续消息不会转发。发送 /unblock 可恢复。"})
+		return true
+	case "/unblock":
+		m.mu.Lock()
+		delete(m.blocked, msg.Chat.ID)
+		err := m.saveLocked()
+		m.mu.Unlock()
+		if err != nil {
+			log.Printf("保存取消屏蔽状态失败: %v", err)
+			return true
+		}
+		_, _ = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: msg.Chat.ID, Text: "已取消屏蔽，消息会继续转发给管理员。"})
+		return true
+	case "/report":
+		reason := strings.TrimSpace(strings.TrimPrefix(msg.Text, fields[0]))
+		if reason == "" {
+			reason = "未提供原因"
+		}
+		m.mu.Lock()
+		m.reports = append(m.reports, report{UserChatID: msg.Chat.ID, Text: reason, CreatedAt: time.Now()})
+		err := m.saveLocked()
+		m.mu.Unlock()
+		if err != nil {
+			log.Printf("保存会话举报失败: %v", err)
+		}
+		_, sendErr := b.SendMessage(ctx, &bot.SendMessageParams{ChatID: m.adminChatID, Text: fmt.Sprintf("⚠️ 会话举报\n用户 Chat ID：%d\n原因：%s", msg.Chat.ID, reason)})
+		if sendErr != nil {
+			log.Printf("通知管理员会话举报失败: %v", sendErr)
+		}
+		_, _ = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: msg.Chat.ID, Text: "已将此会话举报给管理员。"})
+		return true
+	}
+	return false
 }
 
 func (m *Manager) handleAdminReply(ctx context.Context, b *bot.Bot, msg *tgmodels.Message) {
@@ -194,10 +276,15 @@ func (m *Manager) load() error {
 		// created for another administrator, even when the same file is used.
 		if state.AdminChatID == m.adminChatID {
 			m.routes = state.Routes
+			m.blocked = state.Blocked
+			m.reports = state.Reports
 		}
 	}
 	if m.routes == nil {
 		m.routes = make(map[int]route)
+	}
+	if m.blocked == nil {
+		m.blocked = make(map[int64]bool)
 	}
 	if m.removeExpiredLocked(time.Now()) {
 		return m.saveLocked()
@@ -224,7 +311,7 @@ func (m *Manager) saveLocked() error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	data, err := json.Marshal(persistedState{AdminChatID: m.adminChatID, Routes: m.routes})
+	data, err := json.Marshal(persistedState{AdminChatID: m.adminChatID, Routes: m.routes, Blocked: m.blocked, Reports: m.reports})
 	if err != nil {
 		return err
 	}

@@ -41,8 +41,11 @@ func main() {
 		log.Fatalf("初始化群消息白名单失败: %v", err)
 	}
 
+	relayEnabled := parseEnvBool("TELEGRAM_RELAY_ENABLED", true)
 	adminChatIDText := os.Getenv("TELEGRAM_ADMIN_CHAT_ID")
-	if adminChatIDText == "" {
+	if !relayEnabled {
+		log.Println("ℹ️ TELEGRAM_RELAY_ENABLED 未启用，私聊消息中继功能已关闭")
+	} else if adminChatIDText == "" {
 		log.Println("⚠️ 未设置 TELEGRAM_ADMIN_CHAT_ID，私聊消息中继功能未启用")
 	} else {
 		adminChatID, err := strconv.ParseInt(adminChatIDText, 10, 64)
@@ -128,4 +131,16 @@ func main() {
 	log.Println("等待异步任务完成...")
 	models.Wg.Wait()
 	log.Println("已干净退出")
+}
+
+func parseEnvBool(name string, defaultValue bool) bool {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return defaultValue
+	}
+	enabled, err := strconv.ParseBool(value)
+	if err != nil {
+		log.Fatalf("%s 必须是 true/false、1/0、t/f 或 on/off", name)
+	}
+	return enabled
 }

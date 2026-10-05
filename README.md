@@ -39,6 +39,7 @@ Telegram 群管理机器人，支持：
 - `TELEGRAM_WEBHOOK_PATH` - 可选 webhook 路径，默认 `/webhook`
 - `DUPLICATE_MESSAGE_WINDOW` - 可选重复消息匹配时段，默认 `48h`；支持 Go duration（如 `30m`、`72h`），也支持纯数字按小时处理
 - `TELEGRAM_ADMIN_CHAT_ID` - 管理员的 Telegram 数字用户 ID；设置后启用私聊双向中继
+- `TELEGRAM_RELAY_ENABLED` - 是否启用私聊消息中继，支持 `true/false`、`1/0`、`on/off`；默认 `true`。设为 `false` 可关闭私聊中继
 - `TELEGRAM_RELAY_STATE_FILE` - 可选的私聊路由状态文件；未设置或留空时，默认为程序运行目录下的 `relay_routes.json`
 - `TELEGRAM_WHITELIST_ADMIN_IDS` - 可管理群消息白名单的管理员数字用户 ID，多个用英文逗号分隔，例如 `123456789,987654321`；操作者同时必须是当前群的管理员或群主。不设置或留空时所有当前群管理员和群主均可修改；设置后仅指定管理员可修改
 - `TELEGRAM_WHITELIST_STATE_FILE` - 白名单 JSON 文件，默认 `group_whitelist.json`；请确保所在目录可写，容器部署时挂载持久化目录
@@ -55,9 +56,11 @@ Telegram 群管理机器人，支持：
 
 ## 私聊消息中继
 
-设置 `TELEGRAM_ADMIN_CHAT_ID` 后，用户发给 Bot 的私聊消息会默认复制给该管理员。管理员回复用户信息标题时，Bot 会向对应用户发送普通新消息；管理员回复复制过来的用户原消息时，Bot 会引用该原消息进行回复。复制方式不会暴露管理员账号，也适用于文字、图片、文件和语音等常见消息。
+默认情况下，设置 `TELEGRAM_ADMIN_CHAT_ID` 后，用户发给 Bot 的私聊消息会复制给该管理员。将 `TELEGRAM_RELAY_ENABLED=false` 可关闭中继；关闭时 `TELEGRAM_ADMIN_CHAT_ID` 不会启用转发。管理员回复用户信息标题时，Bot 会向对应用户发送普通新消息；管理员回复复制过来的用户原消息时，Bot 会引用该原消息进行回复。复制方式不会暴露管理员账号，也适用于文字、图片、文件和语音等常见消息。
 
 路由关系保留 30 天，并持久化到 `TELEGRAM_RELAY_STATE_FILE` 指定的 JSON 文件；Bot 重启后仍可回复之前收到的消息。请确保运行用户对状态文件所在目录有写权限。
+
+用户可在与 Bot 的私聊中使用 `/block` 停止后续消息转发，使用 `/unblock` 恢复；`/report [原因]` 会将会话举报通知管理员并记录在中继状态文件。`/help` 可查看命令说明。屏蔽和举报记录随中继状态一并保存。
 
 ## 构建与运行
 

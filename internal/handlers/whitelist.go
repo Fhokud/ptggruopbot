@@ -47,6 +47,18 @@ func ConfigureAdminCommands(ctx context.Context, b *bot.Bot) error {
 	if !ok {
 		return fmt.Errorf("Telegram 未确认命令菜单设置")
 	}
+	_, err = b.SetMyCommands(ctx, &bot.SetMyCommandsParams{
+		Scope: &tgmodels.BotCommandScopeAllPrivateChats{},
+		Commands: []tgmodels.BotCommand{
+			{Command: "help", Description: "查看私聊中继帮助"},
+			{Command: "block", Description: "屏蔽并停止转发此会话"},
+			{Command: "unblock", Description: "取消屏蔽此会话"},
+			{Command: "report", Description: "举报此会话并通知管理员"},
+		},
+	})
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
